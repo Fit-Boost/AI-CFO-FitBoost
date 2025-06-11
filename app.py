@@ -1,8 +1,7 @@
 import streamlit as st
 import pandas as pd
 import pdfplumber
-import io
-from openai import OpenAI  # ✅ Esta es la forma correcta con openai>=1.3.9
+from openai import OpenAI
 
 # Configuración inicial de la app
 st.set_page_config(page_title="AI Agent CFO - FitBoost", layout="wide")
@@ -11,7 +10,6 @@ st.write("Subí tu archivo de Excel o PDF, y preguntame lo que necesites saber."
 
 # Cargar archivo
 uploaded_file = st.file_uploader("📤 Subí tu archivo (.xlsx o .pdf)", type=["xlsx", "pdf"])
-
 extracted_text = ""
 df = None
 
@@ -40,12 +38,14 @@ if uploaded_file:
             prompt = f"Este es el texto extraído del PDF:\n{extracted_text}\n\nPregunta: {pregunta}"
 
         response = client.chat.completions.create(
-    model="gpt-3.5-turbo",
-    messages=[{"role": "user", "content": prompt}],
-    temperature=0.4
-)
+            model="gpt-4",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.4
+        )
         st.write("🧠 Respuesta del CFO:")
         st.write(response.choices[0].message.content)
+
+
 
 
 
