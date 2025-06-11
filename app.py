@@ -40,10 +40,10 @@ if uploaded_file:
             prompt = f"Este es el texto extraído del PDF:\n{extracted_text}\n\nPregunta: {pregunta}"
 
         response = client.chat.completions.create(
-            model="gpt-4",
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.4
-        )
+    model="gpt-3.5-turbo",
+    messages=[{"role": "user", "content": prompt}],
+    temperature=0.4
+)
         st.write("🧠 Respuesta del CFO:")
         st.write(response.choices[0].message.content)
 
