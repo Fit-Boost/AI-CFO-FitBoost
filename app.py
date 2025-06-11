@@ -1,4 +1,3 @@
-
 import streamlit as st
 import pandas as pd
 import openai
@@ -33,14 +32,9 @@ if uploaded_file:
         openai.api_key = st.secrets["OPENAI_API_KEY"]
         if df is not None:
             prompt = f"Tus datos de ventas:\n{df.head().to_string(index=False)}\n\nPregunta: {pregunta}"
-{df.head().to_string(index=False)}
-
-Pregunta: {pregunta}"
         else:
-            prompt = f"Este es el texto extraído del PDF:
-{extracted_text}
+            prompt = f"Este es el texto extraído del PDF:\n{extracted_text}\n\nPregunta: {pregunta}"
 
-Pregunta: {pregunta}"
         response = openai.ChatCompletion.create(
             model="gpt-4",
             messages=[{"role": "user", "content": prompt}],
@@ -48,3 +42,4 @@ Pregunta: {pregunta}"
         )
         st.write("🧠 Respuesta del CFO:")
         st.write(response.choices[0].message.content)
+
