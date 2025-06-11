@@ -32,7 +32,7 @@ if uploaded_file:
     if pregunta:
         openai.api_key = st.secrets["OPENAI_API_KEY"]
         if df is not None:
-            prompt = f"Tus datos de ventas:
+            prompt = f"Tus datos de ventas:\n{df.head().to_string(index=False)}\n\nPregunta: {pregunta}"
 {df.head().to_string(index=False)}
 
 Pregunta: {pregunta}"
