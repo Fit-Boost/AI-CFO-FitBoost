@@ -1,8 +1,8 @@
 import streamlit as st
 import pandas as pd
-import openai
 import pdfplumber
 import io
+from openai import OpenAI  # ✅ Esta es la forma correcta con openai>=1.3.9
 
 # Configuración inicial de la app
 st.set_page_config(page_title="AI Agent CFO - FitBoost", layout="wide")
@@ -33,7 +33,7 @@ if uploaded_file:
     pregunta = st.text_input("¿Qué querés saber?")
 
     if pregunta:
-        client = openai.OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+        client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
         if df is not None:
             prompt = f"Tus datos de ventas:\n{df.head().to_string(index=False)}\n\nPregunta: {pregunta}"
         else:
@@ -46,5 +46,7 @@ if uploaded_file:
         )
         st.write("🧠 Respuesta del CFO:")
         st.write(response.choices[0].message.content)
+
+
 
 
