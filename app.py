@@ -44,8 +44,7 @@ def extract_from_pdf(file):
                     dfs.append(df_temp)
                     # Acumula texto para prompts si no hay DataFrame
                     global extracted_text
-                    extracted_text += df_temp.to_string(index=False) + "
-"
+                    extracted_text += df_temp.to_string(index=False) + "\n"
     return dfs
 
 # Procesar los archivos subidos
@@ -91,5 +90,6 @@ if uploaded_files:
         st.info("Escribí una pregunta para que tu CFO digital la responda.")
 else:
     st.info("Por favor subí al menos un archivo para empezar.")
+
 
 
