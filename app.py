@@ -152,28 +152,37 @@ if pregunta:
         # Complemento por LLM
         prompt = f"Dame un breve análisis financiero sobre este hallazgo: {respuesta_auto}"
     else:
-        # Generar prompt con resumen general
-        prompt = "Resumen de métricas y top productos ha sido calculado. "
-        prompt += "Analiza estos datos y responde: " + pregunta
-        # Incluir el resumen para contexto
-        prompt += "
+                # Generar prompt con resumen general
+        prompt = ""  # iniciamos vacío
+        prompt += "Resumen de métricas y top productos ha sido calculado.
+"
+        prompt += f"Pregunta: {pregunta}
 
-Resumen de métricas:
+"
+        # Incluir el resumen para contexto
+        prompt += "Resumen de métricas:
 "
         for k, v in summary.items():
             prompt += f"{k}: {v}
 "
-        if 'top_qty' in locals(): prompt += f"Top 5 Cantidad:
-{top_qty.to_string()}
+        if 'top_qty' in locals():
+            prompt += "
+Top 5 Cantidad:
+" + top_qty.to_string() + "
 "
-        if 'top_rev' in locals(): prompt += f"Top 5 Ingresos:
-{top_rev.to_string()}
+        if 'top_rev' in locals():
+            prompt += "
+Top 5 Ingresos:
+" + top_rev.to_string() + "
 "
-        if 'top_prof' in locals(): prompt += f"Top 5 Utilidad:
-{top_prof.to_string()}
+        if 'top_prof' in locals():
+            prompt += "
+Top 5 Utilidad:
+" + top_prof.to_string() + "
 "
 
-    client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+    # Ahora llamamos al cliente API
+    client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])(api_key=st.secrets["OPENAI_API_KEY"])
     response = client.chat.completions.create(
         model="gpt-4",
         messages=[{"role": "user", "content": prompt}],
@@ -183,4 +192,5 @@ Resumen de métricas:
     st.write(response.choices[0].message.content)
 else:
     st.info("Escribí una pregunta para que tu CFO digital la responda.")
+
 
