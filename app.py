@@ -24,22 +24,21 @@ def extract_from_excel(file):
     sheets = pd.read_excel(file, sheet_name=None, header=None)
     dfs = []
     for sheet_name, raw in sheets.items():
-        # Quitar filas vacías
         non_empty = raw.dropna(how='all')
         if non_empty.empty:
             continue
-        # Primera fila con datos -> encabezado
         header = non_empty.iloc[0].fillna('').astype(str).tolist()
         # Asegurar nombres únicos
         seen = {}
         headers_unique = []
         for h in header:
-            if h in seen:
-                seen[h] += 1
-                headers_unique.append(f"{h}_{seen[h]}")
+            key = h or 'COL'
+            if key in seen:
+                seen[key] += 1
+                headers_unique.append(f"{key}_{seen[key]}")
             else:
-                seen[h] = 0
-                headers_unique.append(h)
+                seen[key] = 0
+                headers_unique.append(key)
         data = non_empty.iloc[1:].reset_index(drop=True)
         data.columns = headers_unique
         st.markdown(f"- Hoja: **{sheet_name}**")
@@ -78,38 +77,43 @@ if uploaded_files:
         df = pd.concat(dfs_all, ignore_index=True, sort=False)
         st.success(f"Se combinaron {len(dfs_all)} tablas/hojas en un único DataFrame con {len(df)} filas.")
 
-        # NORMALIZAR NOMBRES DE COLUMNAS
+        # Normalizar nombres de columnas
         df.columns = [str(c).strip().upper() for c in df.columns]
 
-        # DETECTAR COLUMNAS CLAVE
-        rev_col = next((c for c in df.columns if 'INGRESO' in c), None)
+        # Detectar columnas clave
+        rev_col = next((c for c in df.columns if 'INGRESO' in c or 'VENTA' in c), None)
         cost_col = next((c for c in df.columns if 'COSTO' in c), None)
         qty_col = next((c for c in df.columns if 'CANTIDAD' in c or 'QTY' in c), None)
         prod_col = next((c for c in df.columns if 'PRODUCTO' in c), None)
+        date_col = next((c for c in df.columns if 'FECHA' in c), None)
+        client_col = next((c for c in df.columns if 'CLIENTE' in c), None)
 
-        # CALCULAR UTILIDAD SI ES POSIBLE
+        # Calcular profit
         if rev_col and cost_col:
             df['PROFIT'] = pd.to_numeric(df[rev_col], errors='coerce').fillna(0) - pd.to_numeric(df[cost_col], errors='coerce').fillna(0)
 
-        # RESUMEN DE MÉTRICAS CLAVE
-        summary = {}
+        # Resumen de métricas clave
+t_summary = {}
         if rev_col:
-            summary['Total ingresos'] = df[rev_col].astype(float).sum()
+            t_summary['Total ingresos'] = df[rev_col].astype(float).sum()
         if cost_col:
-            summary['Total costos'] = df[cost_col].astype(float).sum()
+            t_summary['Total costos'] = df[cost_col].astype(float).sum()
         if 'PROFIT' in df:
-            summary['Total utilidad'] = df['PROFIT'].sum()
-            if 'Total ingresos' in summary and summary['Total ingresos']:
-                summary['Margen utilidad %'] = summary['Total utilidad']/summary['Total ingresos']*100
+            t_summary['Total utilidad'] = df['PROFIT'].sum()
+        if 'Total ingresos' in t_summary and t_summary['Total ingresos']:
+            t_summary['Margen utilidad %'] = t_summary['Total utilidad']/t_summary['Total ingresos']*100
 
         st.subheader("📊 Métricas clave")
-        st.table(pd.DataFrame.from_dict(summary, orient='index', columns=['Valor']))
+        st.table(pd.DataFrame.from_dict(t_summary, orient='index', columns=['Valor']))
 
-        # TOP 5 PRODUCTOS
+        # Top 5
+top_qty = None
+top_rev = None
+top_prof = None
         if prod_col and qty_col:
             top_qty = df.groupby(prod_col)[qty_col].sum().nlargest(5)
             st.subheader("🏅 Top 5 Productos por Cantidad")
-            st.table(top_qty.astype(int))
+            st.table(top_qty)
         if prod_col and rev_col:
             top_rev = df.groupby(prod_col)[rev_col].sum().nlargest(5)
             st.subheader("🏅 Top 5 Productos por Ingresos")
@@ -121,76 +125,58 @@ if uploaded_files:
     else:
         df = None
 
-    # PREGUNTA AL CFO
-st.subheader("💬 Preguntale a tu CFO sobre todos los datos")
-pregunta = st.text_input("¿Qué querés saber?")
+    # Pregunta al CFO
+    st.subheader("💬 Preguntale a tu CFO sobre todos los datos")
+    pregunta = st.text_input("¿Qué querés saber?")
+    if pregunta:
+        # Intentar respuesta automática basada en pandas
+        respuesta_auto = None
+        q = pregunta.lower()
+        if prod_col and qty_col and ('mas vendido' in q or 'producto más vendido' in q):
+            respuesta_auto = f"Producto más vendido: {top_qty.idxmax()}"
+        elif client_col and rev_col and ('cliente' in q and 'gast' in q):
+            gasto_cliente = df.groupby(client_col)[rev_col].sum().idxmax()
+            respuesta_auto = f"Cliente que más gastó: {gasto_cliente}"
+        elif date_col and rev_col and ('mes' in q and 'venta' in q):
+            df[date_col] = pd.to_datetime(df[date_col], errors='coerce')
+            df['MES'] = df[date_col].dt.month_name()
+            mes_top = df.groupby('MES')[rev_col].sum().idxmax()
+            respuesta_auto = f"Mes con mayores ventas: {mes_top}"
 
-if pregunta:
-    # Respuestas automáticas basadas en pandas para preguntas comunes
-    respuesta_auto = None
-    q = pregunta.lower()
-    # Producto más vendido
-    if 'producto más vendido' in q or 'mas vendido' in q:
-        if prod_col and qty_col:
-            top_prod = df.groupby(prod_col)[qty_col].sum().idxmax()
-            respuesta_auto = f"El producto más vendido fue '{top_prod}'."
-    # Cliente que más gastó
-    if respuesta_auto is None and ('cliente' in q and 'gast' in q):
-        if rev_col:
-            top_client = df.groupby('CLIENTE' if 'CLIENTE' in df.columns else df.columns[0])[rev_col].sum().idxmax()
-            respuesta_auto = f"El cliente que más gastó fue '{top_client}'."
-    # Periodo de mayor venta (mes)
-    if respuesta_auto is None and ('mes' in q and 'venta' in q):
-        if 'FECHA' in df.columns:
-            df['FECHA'] = pd.to_datetime(df['FECHA'], errors='coerce')
-            df['MES'] = df['FECHA'].dt.month_name()
-            top_mes = df.groupby('MES')[rev_col].sum().idxmax()
-            respuesta_auto = f"El mes con mayores ventas fue {top_mes}."
+        # Construir prompt
+        if respuesta_auto:
+            st.write(f"🧮 Respuesta automática: {respuesta_auto}")
+            prompt = f"Analiza este hallazgo de forma breve y profesional: {respuesta_auto}"+"\n"
+        else:
+            # Resumen compacto para el LLM
+            prompt_lines = ["Resumen de métricas clave:"]
+            for k, v in t_summary.items():
+                prompt_lines.append(f"- {k}: {v}")
+            if top_qty is not None:
+                prompt_lines.append("\nTop 5 Cantidad:")
+                prompt_lines.append(top_qty.to_string())
+            if top_rev is not None:
+                prompt_lines.append("\nTop 5 Ingresos:")
+                prompt_lines.append(top_rev.to_string())
+            if top_prof is not None:
+                prompt_lines.append("\nTop 5 Utilidad:")
+                prompt_lines.append(top_prof.to_string())
+            prompt_lines.append(f"\nPregunta: {pregunta}")
+            prompt = "\n".join(prompt_lines)
 
-    if respuesta_auto:
-        st.write(f"🧮 Respuesta automática: {respuesta_auto}")
-        # Complemento por LLM
-        prompt = f"Dame un breve análisis financiero sobre este hallazgo: {respuesta_auto}"
+        # Llamada al API
+        client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+        response = client.chat.completions.create(
+            model="gpt-4",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.3
+        )
+        st.write("### 🧠 Respuesta del CFO:")
+        st.write(response.choices[0].message.content)
     else:
-                # Generar prompt con resumen general
-        prompt = ""  # iniciamos vacío
-        prompt += "Resumen de métricas y top productos ha sido calculado.
-"
-        prompt += f"Pregunta: {pregunta}
-
-"
-        # Incluir el resumen para contexto
-        prompt += "Resumen de métricas:
-"
-        for k, v in summary.items():
-            prompt += f"{k}: {v}
-"
-        if 'top_qty' in locals():
-            prompt += "
-Top 5 Cantidad:
-" + top_qty.to_string() + "
-"
-        if 'top_rev' in locals():
-            prompt += "
-Top 5 Ingresos:
-" + top_rev.to_string() + "
-"
-        if 'top_prof' in locals():
-            prompt += "
-Top 5 Utilidad:
-" + top_prof.to_string() + "
-"
-
-    # Ahora llamamos al cliente API
-    client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])(api_key=st.secrets["OPENAI_API_KEY"])
-    response = client.chat.completions.create(
-        model="gpt-4",
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0.3
-    )
-    st.write("### 🧠 Respuesta del CFO:")
-    st.write(response.choices[0].message.content)
+        st.info("Escribí una pregunta para que tu CFO digital la responda.")
 else:
-    st.info("Escribí una pregunta para que tu CFO digital la responda.")
+    st.info("Por favor subí al menos un archivo para empezar.")
+
 
 
