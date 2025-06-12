@@ -23,13 +23,25 @@ extracted_text = ""
 def extract_from_excel(file):
     raw_sheets = pd.read_excel(file, sheet_name=None, header=None)
     dfs = []
+    def make_unique(cols):
+        seen = {}
+        new_cols = []
+        for col in cols:
+            col = str(col)
+            if col in seen:
+                seen[col] += 1
+                new_cols.append(f"{col}_{seen[col]}")
+            else:
+                seen[col] = 0
+                new_cols.append(col)
+        return new_cols
+
     for sheet_name, raw in raw_sheets.items():
-        # Eliminar filas totalmente vacías
         non_empty = raw.dropna(how='all')
         if non_empty.empty:
             continue
-        # Primera fila no vacía como encabezados
         header = non_empty.iloc[0].fillna('').astype(str).tolist()
+        header = make_unique(header)
         data = non_empty.iloc[1:].reset_index(drop=True)
         data.columns = header
         st.markdown(f"- Hoja: **{sheet_name}**")
@@ -92,7 +104,3 @@ if uploaded_files:
         st.info("Escribí una pregunta para que tu CFO digital la responda.")
 else:
     st.info("Por favor subí al menos un archivo para empezar.")
-
-
-
-
