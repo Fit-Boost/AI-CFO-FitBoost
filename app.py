@@ -90,26 +90,29 @@ if uploaded_files:
 
         # Calcular profit
         if rev_col and cost_col:
-            df['PROFIT'] = pd.to_numeric(df[rev_col], errors='coerce').fillna(0) - pd.to_numeric(df[cost_col], errors='coerce').fillna(0)
+            df['PROFIT'] = (
+                pd.to_numeric(df[rev_col], errors='coerce').fillna(0)
+                - pd.to_numeric(df[cost_col], errors='coerce').fillna(0)
+            )
 
         # Resumen de métricas clave
-t_summary = {}
+        t_summary = {}
         if rev_col:
             t_summary['Total ingresos'] = df[rev_col].astype(float).sum()
         if cost_col:
             t_summary['Total costos'] = df[cost_col].astype(float).sum()
         if 'PROFIT' in df:
             t_summary['Total utilidad'] = df['PROFIT'].sum()
-        if 'Total ingresos' in t_summary and t_summary['Total ingresos']:
-            t_summary['Margen utilidad %'] = t_summary['Total utilidad']/t_summary['Total ingresos']*100
+        if t_summary.get('Total ingresos'):
+            t_summary['Margen utilidad %'] = t_summary['Total utilidad'] / t_summary['Total ingresos'] * 100
 
         st.subheader("📊 Métricas clave")
         st.table(pd.DataFrame.from_dict(t_summary, orient='index', columns=['Valor']))
 
         # Top 5
-top_qty = None
-top_rev = None
-top_prof = None
+        top_qty = None
+        top_rev = None
+        top_prof = None
         if prod_col and qty_col:
             top_qty = df.groupby(prod_col)[qty_col].sum().nlargest(5)
             st.subheader("🏅 Top 5 Productos por Cantidad")
@@ -122,61 +125,58 @@ top_prof = None
             top_prof = df.groupby(prod_col)['PROFIT'].sum().nlargest(5)
             st.subheader("🏅 Top 5 Productos por Utilidad")
             st.table(top_prof)
-    else:
-        df = None
 
-    # Pregunta al CFO
-    st.subheader("💬 Preguntale a tu CFO sobre todos los datos")
-    pregunta = st.text_input("¿Qué querés saber?")
-    if pregunta:
-        # Intentar respuesta automática basada en pandas
-        respuesta_auto = None
-        q = pregunta.lower()
-        if prod_col and qty_col and ('mas vendido' in q or 'producto más vendido' in q):
-            respuesta_auto = f"Producto más vendido: {top_qty.idxmax()}"
-        elif client_col and rev_col and ('cliente' in q and 'gast' in q):
-            gasto_cliente = df.groupby(client_col)[rev_col].sum().idxmax()
-            respuesta_auto = f"Cliente que más gastó: {gasto_cliente}"
-        elif date_col and rev_col and ('mes' in q and 'venta' in q):
-            df[date_col] = pd.to_datetime(df[date_col], errors='coerce')
-            df['MES'] = df[date_col].dt.month_name()
-            mes_top = df.groupby('MES')[rev_col].sum().idxmax()
-            respuesta_auto = f"Mes con mayores ventas: {mes_top}"
+        # Pregunta al CFO
+        st.subheader("💬 Preguntale a tu CFO sobre todos los datos")
+        pregunta = st.text_input("¿Qué querés saber?")
+        if pregunta:
+            # Intentar respuesta automática basada en pandas
+            respuesta_auto = None
+            q = pregunta.lower()
+            if prod_col and qty_col and ('mas vendido' in q or 'producto más vendido' in q):
+                respuesta_auto = f"Producto más vendido: {top_qty.idxmax()}"
+            elif client_col and rev_col and ('cliente' in q and 'gast' in q):
+                gasto_cliente = df.groupby(client_col)[rev_col].sum().idxmax()
+                respuesta_auto = f"Cliente que más gastó: {gasto_cliente}"
+            elif date_col and rev_col and ('mes' in q and 'venta' in q):
+                df[date_col] = pd.to_datetime(df[date_col], errors='coerce')
+                df['MES'] = df[date_col].dt.month_name()
+                mes_top = df.groupby('MES')[rev_col].sum().idxmax()
+                respuesta_auto = f"Mes con mayores ventas: {mes_top}"
 
-        # Construir prompt
-        if respuesta_auto:
-            st.write(f"🧮 Respuesta automática: {respuesta_auto}")
-            prompt = f"Analiza este hallazgo de forma breve y profesional: {respuesta_auto}"+"\n"
+            # Construir prompt
+            if respuesta_auto:
+                st.write(f"🧮 Respuesta automática: {respuesta_auto}")
+                prompt = f"Analiza este hallazgo de forma breve y profesional: {respuesta_auto}\n"
+            else:
+                prompt_lines = ["Resumen de métricas clave:"]
+                for k, v in t_summary.items():
+                    prompt_lines.append(f"- {k}: {v}")
+                if top_qty is not None:
+                    prompt_lines.append("\nTop 5 Cantidad:")
+                    prompt_lines.append(top_qty.to_string())
+                if top_rev is not None:
+                    prompt_lines.append("\nTop 5 Ingresos:")
+                    prompt_lines.append(top_rev.to_string())
+                if top_prof is not None:
+                    prompt_lines.append("\nTop 5 Utilidad:\n")
+                    prompt_lines.append(top_prof.to_string())
+                prompt_lines.append(f"\nPregunta: {pregunta}")
+                prompt = "\n".join(prompt_lines)
+
+            # Llamada al API
+            client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+            response = client.chat.completions.create(
+                model="gpt-4",
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.3
+            )
+            st.write("### 🧠 Respuesta del CFO:")
+            st.write(response.choices[0].message.content)
         else:
-            # Resumen compacto para el LLM
-            prompt_lines = ["Resumen de métricas clave:"]
-            for k, v in t_summary.items():
-                prompt_lines.append(f"- {k}: {v}")
-            if top_qty is not None:
-                prompt_lines.append("\nTop 5 Cantidad:")
-                prompt_lines.append(top_qty.to_string())
-            if top_rev is not None:
-                prompt_lines.append("\nTop 5 Ingresos:")
-                prompt_lines.append(top_rev.to_string())
-            if top_prof is not None:
-                prompt_lines.append("\nTop 5 Utilidad:")
-                prompt_lines.append(top_prof.to_string())
-            prompt_lines.append(f"\nPregunta: {pregunta}")
-            prompt = "\n".join(prompt_lines)
-
-        # Llamada al API
-        client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
-        response = client.chat.completions.create(
-            model="gpt-4",
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.3
-        )
-        st.write("### 🧠 Respuesta del CFO:")
-        st.write(response.choices[0].message.content)
+            st.info("Escribí una pregunta para que tu CFO digital la responda.")
     else:
-        st.info("Escribí una pregunta para que tu CFO digital la responda.")
-else:
-    st.info("Por favor subí al menos un archivo para empezar.")
+        st.info("Por favor subí al menos un archivo para empezar.")
 
 
 
