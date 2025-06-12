@@ -21,13 +21,21 @@ if uploaded_file:
         st.subheader("📊 Vista previa de tus datos Excel")
         st.dataframe(df)
     elif uploaded_file.name.endswith(".pdf"):
-        st.subheader("📄 Extrayendo datos del PDF...")
+        st.subheader("📄 Extrayendo tablas del PDF...")
+        all_tables = []
         with pdfplumber.open(uploaded_file) as pdf:
             for page in pdf.pages:
-                text = page.extract_text()
-                if text:
-                    extracted_text += text + "\n"
-        st.text_area("📋 Texto extraído del PDF", extracted_text, height=300)
+                tables = page.extract_tables()
+                for table in tables:
+                    if table:
+                        df_temp = pd.DataFrame(table[1:], columns=table[0])
+                        all_tables.append(df_temp)
+                        st.write("📄 Tabla detectada:")
+                        st.dataframe(df_temp)
+                        extracted_text += df_temp.to_string(index=False) + "\n"
+        # Unir todas las tablas extraídas en un solo DataFrame si es posible
+        if all_tables:
+            df = pd.concat(all_tables, ignore_index=True)
 
     # Pregunta
     st.subheader("💬 Preguntale a tu CFO")
@@ -38,9 +46,9 @@ if uploaded_file:
 
         if df is not None:
             datos = df.head().to_string(index=False)
-            prompt = f"Tus datos de ventas:\n{datos}\n\nPregunta: {pregunta}"
+            prompt = f"Tus datos:\n{datos}\n\nPregunta: {pregunta}"
         else:
-            prompt = f"Este es el texto extraído del PDF:\n{extracted_text}\n\nPregunta: {pregunta}"
+            prompt = f"Texto extraído del PDF:\n{extracted_text}\n\nPregunta: {pregunta}"
 
         response = client.chat.completions.create(
             model="gpt-4",
@@ -50,3 +58,4 @@ if uploaded_file:
 
         st.write("🧠 Respuesta del CFO:")
         st.write(response.choices[0].message.content)
+
